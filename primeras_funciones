@@ -1,0 +1,90 @@
+##Librerias##
+import numpy as np
+import networkx as nx
+import pandas as pd
+import random
+
+###Funciones complementarias a la principal###
+
+def pertenencia_N(tabla,col3,col1):
+    """Indica a qué comunidad pertenece cada nodo"""
+    nodos=list(pd.unique(tabla[col3])) ##Con esto cuento el total de nodos en la tabla
+    pertenencia_nodos=[]
+    
+    for i in nodos:
+        x=tabla.loc[tabla[col3]==i] ##Con esto me quedo con una subtabla en dónde solo está ese nodo repetido
+        x=list(x[col1]) ##selecciono la columna con la info de a qué comunidad/bloque pertenece
+        pertenencia_nodos.append(x[0]) ## con esto me quedo con la info y la guardo en la lista de pertenencia
+    return pertenencia_nodos
+
+def matrizE(matriz_enlaces,frec,col1,col2,NC):
+    """Regresa matriz de enlaces, conteos de enlaces totales entre los diferentes bloques
+    Listas 1,2,3 :  resumen la info en la tabla 'frec' en dónde están los conteos de enlaces entre diferentes comunidades,
+    cada lista es una columna de la tabla 'frec' """
+
+    lista1= list(frec[col1]) #Nombre bloque 1
+    lista2= list(frec[col2]) #Nombre bloque 2
+    lista3= list(frec['Enlaces']) ##Total de enlaces entre bloque 1 y 2 
+    
+    for i in range(len(lista1)): ##Con este for guardo la información de la tabla en una matriz, uso NC para que los indices vayan de acuerdo a un orden elegido
+        anova1= lista1[i]
+        anova2=lista2[i]
+        enlaces_tot=lista3[i]
+
+        indice1=NC.index(anova1)
+        indice2=NC.index(anova2)
+        matriz_enlaces[indice1][indice2]=enlaces_tot
+    return(matriz_enlaces)
+
+def matrizP(matriz_enlaces,sizes):
+    """Regresa la matriz de probabilidad de enlaces entre bloques """
+    enlaces_totales= total_enlaces(matriz_enlaces,sizes)##El número máx de enlaces posibles entre comunidades
+    matriz_probs= matriz_enlaces/ enlaces_totales ##Divido los enlaces contados entre el máximo
+    return matriz_probs
+
+
+def total_enlaces(matriz_enlaces,sizes):
+    """Calcula el maximo de enlaces posibles entre comunidades"""
+    tot_enlaces=np.zeros_like(matriz_enlaces)##Esta matriz tendra los números max de enlaces posibles entre comunidades
+    conteo_ordenado=sizes
+    for i in range(0,len(conteo_ordenado)): #Calculo de num max de enlaces entre comunidades
+        for j in range(0,len(conteo_ordenado)):
+            if i == j:
+                tot_enlaces[i][j]=(conteo_ordenado[i]*(conteo_ordenado[j]-1))/2 ##Ec. utilizada
+            else:
+                tot_enlaces[i][j]=(conteo_ordenado[i]*conteo_ordenado[j])/2
+    return tot_enlaces
+    
+##Función principal ###
+def inputMBE(tabla,col1,col2,col3):
+    import pandas as pd
+    import numpy as np
+    """Función para generar input al modelo de bloques estocasticos
+    tabla= Dataframe con información de los nodos y sus conexiones en la red
+    col1 y col2=  columnas de la tabla que indican las comunidades a las que pertenecen las parejas de conectados,
+    en el caso ejemplo son 'anova_from' y 'anova_to'
+    col3= columna con los nombres de los nodos para saber cuántos nodos hay en total en el caso ejemplo es 'node.from'
+    """
+    PC= len(pd.unique(tabla[col1])) ##cuantas posible comunidades de acuerdo a una caracteristica hay
+    NC= list(pd.unique(tabla[col1])) ##enlisto los nombres de las comunidades
+    matriz_enlaces_vacia= np.zeros((PC,PC)) ##matriz nxn basandome en el posible numero de comunidades
+    frec=tabla.groupby([col1,col2]).size().reset_index(name="Enlaces") ##Contando la frecuencia en dos columnas para saber el # de enlaces entre comunidades
+    
+    pertenencia= pertenencia_N(tabla,col3,col1) ##Lista de longitud= # de nodos, con los nombres de la com a la que pertenece cada nodo
+    sizes= np.zeros((len(NC),)) ##Entrada 1 MBE 
+    for i in pertenencia:
+        indice=NC.index(i)
+        sizes[indice]+=1
+
+    mat_enlaces= matrizE(matriz_enlaces_vacia,frec,col1,col2,NC) ##matriz de enlaces
+    mat_probs= matrizP(mat_enlaces,sizes) #matriz de probabilidades
+    return sizes, mat_probs, NC 
+
+
+## Función para generar nueva lista 'sizes', (cambiar tamaño de los bloques )
+def modifica_sizes(sizes,inicio,fin):
+    nuevo_sizes=np.zeros_like(sizes)
+    for i in range(len(sizes)):
+        valor=random.randint(inicio,fin)
+        nuevo_sizes[i]=valor
+    return nuevo_sizes
